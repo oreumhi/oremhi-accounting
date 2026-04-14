@@ -3,8 +3,8 @@
 // ============================================
 
 import React from 'react';
-import { C } from './config';
-import { fmt } from './utils';
+import { C } from '../config';
+import { fmt } from '../utils';
 
 export function StatCard({ label, value, color, icon, noWon, S }) {
   return (
