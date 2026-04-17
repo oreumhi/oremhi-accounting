@@ -70,9 +70,9 @@ export default function Receipt({ data, add, S }) {
           <div style={S.card}>
             <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>영수증 이미지 업로드</div>
             <div style={{fontSize:12,color:C.txd,marginBottom:12}}>AI 자동 인식 + 원본 이미지 영구 저장</div>
-            <div onClick={() => ref.current?.click()} style={{border:`2px dashed ${C.bd}`,borderRadius:12,padding:40,textAlign:'center',cursor:'pointer'}} onMouseEnter={e => e.currentTarget.style.borderColor=C.ac} onMouseLeave={e => e.currentTarget.style.borderColor=C.bd}>
+            <div onClick={() => ref.current?.click()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) scan(f); }} onDragOver={e => e.preventDefault()} onDragEnter={e => e.currentTarget.style.borderColor=C.ac} onDragLeave={e => e.currentTarget.style.borderColor=C.bd} style={{border:`2px dashed ${C.bd}`,borderRadius:12,padding:40,textAlign:'center',cursor:'pointer'}} onMouseEnter={e => e.currentTarget.style.borderColor=C.ac} onMouseLeave={e => e.currentTarget.style.borderColor=C.bd}>
               <div style={{fontSize:32,marginBottom:8}}>📸</div>
-              <div style={{color:C.txd}}>클릭하여 영수증 이미지 선택</div>
+              <div style={{color:C.txd}}>클릭 또는 드래그하여 영수증 이미지 업로드</div>
               <div style={{color:C.txm,fontSize:11,marginTop:3}}>JPG, PNG 지원 · 이미지는 영구 보관됩니다</div>
             </div>
             <input ref={ref} type="file" accept="image/*" style={{display:'none'}} onChange={e => e.target.files?.[0] && scan(e.target.files[0])} />
