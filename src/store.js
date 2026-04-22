@@ -14,18 +14,19 @@ export const sb = hasSB ? createClient(url, key) : null;
 
 // ─── 테이블 설정 ───
 const TABLES = {
-  revenue:     'revenue',
-  expenses:    'expenses',
-  recurring:   'recurring',
-  bank:        'bank_transactions',
-  clients:     'clients',
-  taxInvoices: 'tax_invoices',
-  payroll:     'payroll',
-  contracts:   'contracts',
-  documents:   'documents',
-  notes:       'notes',
-  budgets:     'budgets',
-  favorites:   'favorites',
+  revenue:       'revenue',
+  expenses:      'expenses',
+  recurring:     'recurring',
+  bank:          'bank_transactions',
+  clients:       'clients',
+  taxInvoices:   'tax_invoices',
+  payroll:       'payroll',
+  contracts:     'contracts',
+  documents:     'documents',
+  notes:         'notes',
+  budgets:       'budgets',
+  favorites:     'favorites',
+  categoryRules: 'category_rules',
 };
 
 // ─── CRUD 함수 ───
