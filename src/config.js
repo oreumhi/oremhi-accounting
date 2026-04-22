@@ -34,6 +34,7 @@ export function getStyles(fontSize = 14) {
 // ─── 탭 ───
 export const TABS = [
   { id:'dashboard', label:'대시보드', icon:'📊' },
+  { id:'bankUpload', label:'거래내역 업로드', icon:'📥' },
   { id:'revenue', label:'매출관리', icon:'📈' },
   { id:'expense', label:'지출관리', icon:'💳' },
   { id:'recurring', label:'정기지출', icon:'🔄' },

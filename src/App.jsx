@@ -11,6 +11,7 @@ import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Revenue from './pages/Revenue';
 import Expense from './pages/Expense';
+import BankUpload from './pages/BankUpload';
 import Recurring from './pages/Recurring';
 import Bank from './pages/Bank';
 import Clients from './pages/Clients';
@@ -73,7 +74,7 @@ export default function App() {
   const [settings, setSettings] = useState({ pin_hash:null, font_size:'medium' });
   const [locked, setLocked] = useState(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const { data, loading, add, remove, update, restoreBackup } = useStore();
+  const { data, loading, add, addBulk, remove, update, restoreBackup } = useStore();
 
   // 설정 로드
   useEffect(() => {
@@ -112,6 +113,7 @@ export default function App() {
   return (
     <Layout tab={tab} setTab={setTab} data={data} fontSize={fontSize}>
       {tab === 'dashboard'  && <Dashboard {...pp} />}
+      {tab === 'bankUpload' && <BankUpload {...pp} addBulk={addBulk} />}
       {tab === 'revenue'    && <Revenue {...pp} />}
       {tab === 'expense'    && <Expense {...pp} />}
       {tab === 'recurring'  && <Recurring {...pp} />}

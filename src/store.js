@@ -196,5 +196,23 @@ export function useStore() {
     setData(d);
   }, []);
 
-  return { data, loading, add, remove, update, restoreBackup };
+  // 일괄 등록 (거래내역 업로드용)
+  const addBulk = useCallback(async (key, items) => {
+    const t = TABLES[key];
+    if (!t || !items.length) return { success: 0, fail: 0 };
+    let success = 0, fail = 0;
+    const newItems = [];
+    for (const item of items) {
+      const newItem = { ...item, id: uid() };
+      const r = await insertItem(t, newItem);
+      if (r) { newItems.push(newItem); success++; }
+      else { fail++; }
+    }
+    if (newItems.length > 0) {
+      setData(p => ({ ...p, [key]: [...p[key], ...newItems] }));
+    }
+    return { success, fail };
+  }, []);
+
+  return { data, loading, add, addBulk, remove, update, restoreBackup };
 }
