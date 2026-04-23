@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { C, REV_CATS } from '../config';
 import { fmt, today, exportToExcel } from '../utils';
-import { PageTitle, FormGrid, DataTable, SummaryBar, Badge, ExportBtn } from '../components/ui';
+import { PageTitle, FormGrid, DataTable, SummaryBar, Badge, ExportBtn, DateRangeFilter, filterDateRange } from '../components/ui';
 
 export default function Revenue({ data, add, remove, S }) {
   const { revenue: items, clients } = data;
   const [f, sF] = useState({ date:today(), client:'', description:'', amount:'', category:'광고대행수수료', memo:'' });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const filtered = useMemo(() => filterDateRange(items, dateFrom, dateTo), [items, dateFrom, dateTo]);
 
   const submit = async () => {
     if (!f.amount) return alert('금액을 입력해주세요');
@@ -27,7 +31,7 @@ export default function Revenue({ data, add, remove, S }) {
       <div style={S.card}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
           <div style={{ fontSize:14, fontWeight:600 }}>매출 등록</div>
-          <ExportBtn onClick={() => exportToExcel(items, '매출', '매출내역')} S={S} />
+          <ExportBtn onClick={() => exportToExcel(filtered, '매출', '매출내역')} S={S} />
         </div>
         <FormGrid cols={3}>
           <input style={S.inp} type="date" value={f.date} onChange={e => sF({...f, date:e.target.value})} />
@@ -39,8 +43,9 @@ export default function Revenue({ data, add, remove, S }) {
         </FormGrid>
         <div style={{ marginTop:12, display:'flex', justifyContent:'flex-end' }}><button style={S.btn} onClick={submit}>등록</button></div>
       </div>
-      <SummaryBar label={`총 매출 (${items.length}건)`} amount={items.reduce((s,i) => s+Number(i.amount),0)} color={C.ok} S={S} />
-      <DataTable columns={cols} data={[...items].reverse()} onDelete={id => remove('revenue',id)} emptyText="매출 내역 없음" S={S} />
+      <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onReset={() => { setDateFrom(''); setDateTo(''); }} S={S} />
+      <SummaryBar label={`조회 매출 (${filtered.length}건)`} amount={filtered.reduce((s,i) => s+Number(i.amount),0)} color={C.ok} S={S} />
+      <DataTable columns={cols} data={[...filtered].reverse()} onDelete={id => remove('revenue',id)} emptyText="매출 내역 없음" S={S} />
     </div>
   );
 }

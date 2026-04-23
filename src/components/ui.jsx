@@ -95,6 +95,29 @@ export function BarItem({ label, value, maxValue, color = C.ac }) {
   );
 }
 
+// 날짜 범위 필터 (모든 페이지에서 재사용)
+export function DateRangeFilter({ from, to, onFromChange, onToChange, onReset, S }) {
+  return (
+    <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:14, flexWrap:'wrap' }}>
+      <span style={{ fontSize:12, color:C.txd }}>기간:</span>
+      <input type="date" value={from} onChange={e => onFromChange(e.target.value)} style={{ ...S.inp, width:'auto', padding:'6px 10px', fontSize:12 }} />
+      <span style={{ fontSize:12, color:C.txm }}>~</span>
+      <input type="date" value={to} onChange={e => onToChange(e.target.value)} style={{ ...S.inp, width:'auto', padding:'6px 10px', fontSize:12 }} />
+      {onReset && <button onClick={onReset} style={{ background:'none', border:`1px solid ${C.bd}`, borderRadius:6, padding:'5px 10px', color:C.txd, cursor:'pointer', fontSize:11 }}>전체</button>}
+    </div>
+  );
+}
+
+// 날짜 범위로 배열 필터
+export function filterDateRange(arr, from, to, field = 'date') {
+  return arr.filter(i => {
+    const d = i[field] || '';
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+}
+
 // 엑셀 내보내기 버튼
 export function ExportBtn({ onClick, label = '엑셀 다운로드', S }) {
   return (

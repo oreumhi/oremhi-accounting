@@ -1,19 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { C, EXP_CATS, PAY_METHODS, pmColor } from '../config';
 import { fmt, today, exportToExcel, checkDuplicate } from '../utils';
-import { PageTitle, NoteBox, FormGrid, DataTable, SummaryBar, FilterBar, Badge, ExportBtn } from '../components/ui';
+import { PageTitle, NoteBox, FormGrid, DataTable, SummaryBar, FilterBar, Badge, ExportBtn, DateRangeFilter, filterDateRange } from '../components/ui';
 
 export default function Expense({ data, add, remove, S }) {
   const { expenses: items, clients, favorites } = data;
   const [f, sF] = useState({ date:today(), pay_method:'법인카드', client:'', description:'', amount:'', category:'식대', card_name:'', memo:'' });
   const [fil, sFil] = useState('전체');
   const [showFav, setShowFav] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const isCard = ['법인카드','개인카드','체크카드'].includes(f.pay_method);
 
   const submit = async () => {
     if (!f.amount) return alert('금액을 입력해주세요');
-    // 중복 감지
     const dup = checkDuplicate(items, f);
     if (dup && !confirm(`⚠️ 같은 날짜에 같은 금액(₩${fmt(f.amount)})의 거래가 있습니다.\n거래처: ${dup.client || '-'}\n그래도 등록하시겠습니까?`)) return;
     if (await add('expenses', { ...f, amount:Number(f.amount) }))
@@ -32,7 +33,11 @@ export default function Expense({ data, add, remove, S }) {
     setShowFav(false);
   };
 
-  const filtered = fil === '전체' ? items : items.filter(i => (i.pay_method || i.payMethod) === fil);
+  const filtered = useMemo(() => {
+    let result = filterDateRange(items, dateFrom, dateTo);
+    if (fil !== '전체') result = result.filter(i => (i.pay_method || i.payMethod) === fil);
+    return result;
+  }, [items, dateFrom, dateTo, fil]);
   const total = filtered.reduce((s,i) => s+Number(i.amount), 0);
   const expFavs = (favorites || []).filter(fv => fv.table_name === 'expenses');
 
@@ -86,8 +91,9 @@ export default function Expense({ data, add, remove, S }) {
         </FormGrid>
         <div style={{ marginTop:12, display:'flex', justifyContent:'flex-end' }}><button style={S.btn} onClick={submit}>등록</button></div>
       </div>
+      <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onReset={() => { setDateFrom(''); setDateTo(''); }} S={S} />
       <FilterBar options={['전체',...PAY_METHODS]} value={fil} onChange={sFil} S={S} />
-      <SummaryBar label={`${fil==='전체'?'총 지출':fil+' 지출'} (${filtered.length}건)`} amount={total} color={C.no} S={S} />
+      <SummaryBar label={`${fil==='전체'?'조회 지출':fil+' 지출'} (${filtered.length}건)`} amount={total} color={C.no} S={S} />
       <DataTable columns={cols} data={[...filtered].reverse()} onDelete={id => remove('expenses',id)} emptyText="지출 내역 없음" S={S} />
     </div>
   );
