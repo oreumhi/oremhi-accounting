@@ -271,6 +271,7 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
 
   // ─── 일괄 저장 ───
   const handleSave = async () => {
+    if (saving) return; // 중복 클릭 방지
     const selected = items.filter(i => i._selected);
     if (selected.length === 0) return alert('저장할 항목을 선택해주세요');
     const dupes = selected.filter(isDuplicate);

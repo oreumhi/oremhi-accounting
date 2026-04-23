@@ -222,21 +222,20 @@ export function useStore() {
     setData(d);
   }, []);
 
-  // 일괄 등록 (거래내역 업로드용)
+  // 일괄 등록 (거래내역 업로드용) — 중복 방지
   const addBulk = useCallback(async (key, items) => {
     const t = TABLES[key];
     if (!t || !items.length) return { success: 0, fail: 0 };
     let success = 0, fail = 0;
-    const newItems = [];
     for (const item of items) {
       const newItem = { ...item, id: uid() };
       const r = await insertItem(t, newItem);
-      if (r) { newItems.push(newItem); success++; }
+      if (r) { success++; }
       else { fail++; }
     }
-    if (newItems.length > 0) {
-      setData(p => ({ ...p, [key]: [...p[key], ...newItems] }));
-    }
+    // 로컬 상태를 수동으로 추가하지 않고 DB에서 다시 로드
+    const fresh = await fetchAll(t);
+    setData(p => ({ ...p, [key]: fresh }));
     return { success, fail };
   }, []);
 
