@@ -157,7 +157,7 @@ function exportForTax(items) {
 // 메인 컴포넌트
 // ═══════════════════════════════════════════
 
-export default function BankUpload({ data, add, addBulk, remove, S }) {
+export default function BankUpload({ data, add, addBulk, remove, update, S }) {
   const [items, setItems] = useState([]);
   const [fileType, setFileType] = useState('');
   const [saving, setSaving] = useState(false);
@@ -234,11 +234,21 @@ export default function BankUpload({ data, add, addBulk, remove, S }) {
     setItems(p => p.map(i => i._id === id ? { ...i, memo: value } : i));
   };
 
-  // ─── 영수증 첨부 ───
+  // ─── 영수증 첨부 (직접 또는 보관함) ───
+  const [receiptPopup, setReceiptPopup] = useState(null); // item._id or null
+
   const handleReceipt = (id, file) => {
     if (!file) return;
-    setItems(p => p.map(i => i._id === id ? { ...i, _imageFile: file } : i));
+    setItems(p => p.map(i => i._id === id ? { ...i, _imageFile: file, _linkedReceiptId: null } : i));
+    setReceiptPopup(null);
   };
+
+  const handleLinkReceipt = (itemId, receipt) => {
+    setItems(p => p.map(i => i._id === itemId ? { ...i, _imageFile: null, _linkedReceiptId: receipt.id, _linkedReceiptUrl: receipt.image_url } : i));
+    setReceiptPopup(null);
+  };
+
+  const unlinkedReceipts = (data.receiptStorage || []).filter(r => !r.linked);
 
   // ─── 규칙 삭제 ───
   const handleDeleteRule = async (ruleId) => {
@@ -274,6 +284,12 @@ export default function BankUpload({ data, add, addBulk, remove, S }) {
       if (item._imageFile) {
         const url = await uploadImage(item._imageFile);
         item._imageUrl = url;
+      } else if (item._linkedReceiptUrl) {
+        item._imageUrl = item._linkedReceiptUrl;
+        // 보관함 영수증을 연결됨으로 표시
+        if (item._linkedReceiptId) {
+          await update('receiptStorage', item._linkedReceiptId, { linked: true, linked_expense_id: item._id });
+        }
       }
     }
 
@@ -472,12 +488,44 @@ export default function BankUpload({ data, add, addBulk, remove, S }) {
                       <td style={td}>
                         {!skipped && <input style={miniInp} placeholder="메모" value={item.memo} onChange={e => handleMemoChange(item._id, e.target.value)} />}
                       </td>
-                      <td style={td}>
+                      <td style={{ ...td, position: 'relative' }}>
                         {!skipped && (
-                          <label style={{ cursor: 'pointer', fontSize: 11 }}>
-                            {item._imageFile ? <span style={{ color: C.ok }}>✅</span> : <span style={{ color: C.txm }}>📎</span>}
-                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleReceipt(item._id, e.target.files?.[0])} />
-                          </label>
+                          <>
+                            {item._imageFile ? (
+                              <span style={{ color: C.ok, fontSize: 13 }}>✅ 첨부</span>
+                            ) : item._linkedReceiptUrl ? (
+                              <span style={{ color: C.ok, fontSize: 13 }}>✅ 연결</span>
+                            ) : (
+                              <span onClick={() => setReceiptPopup(receiptPopup === item._id ? null : item._id)} style={{ cursor: 'pointer', color: C.txm, fontSize: 16 }}>📎</span>
+                            )}
+                            {receiptPopup === item._id && (
+                              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 10, background: C.sf, border: `1px solid ${C.bd}`, borderRadius: 8, padding: 8, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                                <label style={{ display: 'block', padding: '8px 10px', cursor: 'pointer', fontSize: 12, borderRadius: 6, color: C.ac, fontWeight: 600 }}>
+                                  📁 직접 첨부
+                                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleReceipt(item._id, e.target.files?.[0])} />
+                                </label>
+                                {unlinkedReceipts.length > 0 && (
+                                  <>
+                                    <div style={{ fontSize: 10, color: C.txm, padding: '6px 10px 2px', borderTop: `1px solid ${C.bd}`, marginTop: 4 }}>📸 보관함에서 연결</div>
+                                    <div style={{ maxHeight: 150, overflowY: 'auto' }}>
+                                      {unlinkedReceipts.map(r => (
+                                        <div key={r.id} onClick={() => handleLinkReceipt(item._id, r)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', cursor: 'pointer', borderRadius: 6, fontSize: 11 }} onMouseEnter={e => e.currentTarget.style.background = C.sf2} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                          {r.image_url && <img src={r.image_url} style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4 }} />}
+                                          <div>
+                                            <div>{r.client || '미입력'}</div>
+                                            <div style={{ color: C.txm }}>{r.date}{r.amount > 0 ? ` · ₩${fmt(r.amount)}` : ''}</div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                                {unlinkedReceipts.length === 0 && (
+                                  <div style={{ fontSize: 11, color: C.txm, padding: '4px 10px' }}>보관함에 영수증이 없습니다</div>
+                                )}
+                              </div>
+                            )}
+                          </>
                         )}
                       </td>
                       <td style={td}>

@@ -25,6 +25,7 @@ import Docs from './pages/Docs';
 import Receipt from './pages/Receipt';
 import Notes from './pages/Notes';
 import Settings from './pages/Settings';
+import MobileApp from './pages/MobileApp';
 
 // ─── 비밀번호 잠금 화면 ───
 function PasswordLock({ onUnlock }) {
@@ -74,7 +75,15 @@ export default function App() {
   const [settings, setSettings] = useState({ pin_hash:null, font_size:'medium' });
   const [locked, setLocked] = useState(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const { data, loading, add, addBulk, remove, update, restoreBackup } = useStore();
+
+  // 모바일 감지
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // 설정 로드
   useEffect(() => {
@@ -110,6 +119,12 @@ export default function App() {
   // 페이지 props
   const pp = { data, add, remove, update, S };
 
+  // 모바일: 전용 UI 표시
+  if (isMobile) {
+    return <MobileApp data={data} add={add} remove={remove} update={update} />;
+  }
+
+  // 데스크톱: 기존 UI
   return (
     <Layout tab={tab} setTab={setTab} data={data} fontSize={fontSize}>
       {tab === 'dashboard'  && <Dashboard {...pp} />}

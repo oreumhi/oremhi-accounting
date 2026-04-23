@@ -27,6 +27,7 @@ const TABLES = {
   budgets:       'budgets',
   favorites:     'favorites',
   categoryRules: 'category_rules',
+  receiptStorage: 'receipt_storage',
 };
 
 // ─── CRUD 함수 ───
@@ -88,6 +89,30 @@ export async function uploadImage(file) {
   if (error) { console.error('이미지 업로드:', error.message); return null; }
   const { data } = sb.storage.from('receipts').getPublicUrl(path);
   return data?.publicUrl || null;
+}
+
+// AI 영수증 스캔 (크레딧 없으면 null 반환)
+export async function scanReceipt(file) {
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const mediaType = file.type || 'image/jpeg';
+    const res = await fetch('/api/scan-receipt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64, mediaType }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.error) return null;
+    return data; // { date, client, amount, category, pay_method, description }
+  } catch {
+    return null;
+  }
 }
 
 // ─── 앱 설정 (PIN, 글자크기) ───
