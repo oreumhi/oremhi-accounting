@@ -40,6 +40,22 @@ export default function Dashboard({ data, S }) {
     return { ...b, spent, pct };
   }).filter(b => b.pct >= 80);
 
+  // 지출 TOP10 (거래처별)
+  const expByClient = {};
+  filterMonth(expenses, m).forEach(e => {
+    const k = e.client || e.description || '기타';
+    expByClient[k] = (expByClient[k] || 0) + Number(e.amount || 0);
+  });
+  const expTop10 = Object.entries(expByClient).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  // 매출 TOP10 (거래처별)
+  const revByClient = {};
+  filterMonth(revenue, m).forEach(r => {
+    const k = r.client || r.description || '기타';
+    revByClient[k] = (revByClient[k] || 0) + Number(r.amount || 0);
+  });
+  const revTop10 = Object.entries(revByClient).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
   // 최근 거래
   const recent = [
     ...expenses.map(e => ({ ...e, _t: '지출', _c: C.no, _s: e.pay_method })),
@@ -112,6 +128,40 @@ export default function Dashboard({ data, S }) {
                 <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: 7, background: C.sf2 }}>
                   <div><div style={{ fontSize: 12, fontWeight: 500 }}>{r.description || r.client || '-'}</div><div style={{ fontSize: 10, color: C.txd }}>{r.date}·{r._s}</div></div>
                   <div style={{ fontWeight: 600, fontSize: 12, color: r._c }}>{r._t === '매출' ? '+' : '-'}₩{fmt(r.amount)}</div>
+                </div>
+              ))}
+            </div>}
+        </div>
+      </div>
+
+      {/* TOP10 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 12, marginTop: 12 }}>
+        <div style={S.card}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>🔥 이번달 지출 TOP10</div>
+          {expTop10.length === 0 ? <div style={{ color: C.txd, textAlign: 'center', padding: 16, fontSize: 12 }}>데이터 없음</div> :
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {expTop10.map(([name, amt], i) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: 7, background: C.sf2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: i < 3 ? C.no : C.txd, width: 18 }}>{i + 1}</span>
+                    <span style={{ fontSize: 12 }}>{name}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.no }}>₩{fmt(amt)}</span>
+                </div>
+              ))}
+            </div>}
+        </div>
+        <div style={S.card}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>💰 이번달 매출 TOP10</div>
+          {revTop10.length === 0 ? <div style={{ color: C.txd, textAlign: 'center', padding: 16, fontSize: 12 }}>데이터 없음</div> :
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {revTop10.map(([name, amt], i) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', borderRadius: 7, background: C.sf2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: i < 3 ? C.ok : C.txd, width: 18 }}>{i + 1}</span>
+                    <span style={{ fontSize: 12 }}>{name}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.ok }}>₩{fmt(amt)}</span>
                 </div>
               ))}
             </div>}

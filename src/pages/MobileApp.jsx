@@ -307,6 +307,7 @@ function ReceiptTab({ data, add, remove, update }) {
   const [editId, setEditId] = useState(null);
   const [f, sF] = useState({ date: today(), client: '', amount: '', memo: '' });
   const fileRef = useRef();
+  const galleryRef = useRef();
 
   const sorted = useMemo(() => {
     const unlinked = receipts.filter(r => !r.linked);
@@ -397,15 +398,23 @@ function ReceiptTab({ data, add, remove, update }) {
 
       {!capturing ? (
         <>
-          {/* 촬영 버튼 */}
-          <div style={{ ...MB.card, textAlign: 'center', padding: 30 }}>
-            <div onClick={() => fileRef.current?.click()} style={{ cursor: 'pointer' }}>
-              <div style={{ fontSize: 50, marginBottom: 10 }}>📷</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: C.ac }}>영수증 촬영하기</div>
-              <div style={{ fontSize: 12, color: C.txd, marginTop: 4 }}>촬영 후 보관함에 저장됩니다</div>
-              <div style={{ fontSize: 11, color: C.txm, marginTop: 2 }}>PC에서 거래내역 업로드 시 연결할 수 있습니다</div>
+          {/* 촬영 + 갤러리 버튼 */}
+          <div style={{ ...MB.card, textAlign: 'center', padding: 24 }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div onClick={() => fileRef.current?.click()} style={{ flex: 1, cursor: 'pointer', padding: 20, background: C.sf2, borderRadius: 12, border: `1px solid ${C.bd}` }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📷</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.ac }}>촬영하기</div>
+                <div style={{ fontSize: 11, color: C.txd, marginTop: 3 }}>카메라로 촬영</div>
+              </div>
+              <div onClick={() => galleryRef.current?.click()} style={{ flex: 1, cursor: 'pointer', padding: 20, background: C.sf2, borderRadius: 12, border: `1px solid ${C.bd}` }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🖼️</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.ac }}>앨범에서 선택</div>
+                <div style={{ fontSize: 11, color: C.txd, marginTop: 3 }}>저장된 사진 업로드</div>
+              </div>
             </div>
+            <div style={{ fontSize: 11, color: C.txm, marginTop: 10 }}>보관함에 저장 → PC에서 거래내역과 연결</div>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleCapture(e.target.files[0])} />
+            <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && handleCapture(e.target.files[0])} />
           </div>
 
           {/* 보관함 목록 */}
