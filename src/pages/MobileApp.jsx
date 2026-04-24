@@ -175,6 +175,9 @@ function ExpenseTab({ data, add, remove, update }) {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [f, sF] = useState({ date:today(), client:'', description:'', amount:'', category:'식대', pay_method:'법인카드', memo:'' });
+  const [uploadingId, setUploadingId] = useState(null);
+  const mReceiptRef = useRef(null);
+  const mReceiptTargetId = useRef(null);
 
   const recent = useMemo(() => [...expenses].reverse().slice(0, 30), [expenses]);
 
@@ -204,8 +207,34 @@ function ExpenseTab({ data, add, remove, update }) {
     }
   };
 
+  const triggerMobileReceipt = (itemId) => {
+    mReceiptTargetId.current = itemId;
+    mReceiptRef.current?.click();
+  };
+
+  const handleMobileReceiptFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !mReceiptTargetId.current) return;
+    const id = mReceiptTargetId.current;
+    setUploadingId(id);
+    try {
+      const image_url = await uploadImage(file);
+      if (image_url) {
+        await update('expenses', id, { image_url });
+      } else {
+        alert('이미지 업로드에 실패했습니다.');
+      }
+    } catch (err) {
+      alert('업로드 중 오류가 발생했습니다.');
+    }
+    setUploadingId(null);
+    mReceiptTargetId.current = null;
+    if (mReceiptRef.current) mReceiptRef.current.value = '';
+  };
+
   return (
     <div style={MB.page}>
+      <input ref={mReceiptRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleMobileReceiptFile} />
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
         <div style={MB.title}>💳 지출 관리</div>
         <button onClick={() => { resetForm(); setEditItem(null); setShowForm(!showForm); }} style={{ ...MB.btnSm, background:showForm ? C.txm : C.ac }}>
@@ -278,6 +307,13 @@ function ExpenseTab({ data, add, remove, update }) {
             <div style={{ textAlign:'right', flexShrink:0, marginLeft:10 }}>
               <div style={{ fontSize:15, fontWeight:700, color:C.no }}>₩{fmt(item.amount)}</div>
               <div style={{ display:'flex', gap:6, marginTop:6 }}>
+                {item.image_url ? (
+                  <a href={item.image_url} target="_blank" rel="noopener" style={{ background:'none', border:`1px solid ${C.ok}44`, borderRadius:6, padding:'4px 10px', color:C.ok, fontSize:11, textDecoration:'none', display:'inline-block' }}>영수증보기</a>
+                ) : uploadingId === item.id ? (
+                  <span style={{ fontSize:11, color:C.txm, padding:'4px 10px' }}>업로드중...</span>
+                ) : (
+                  <button onClick={() => triggerMobileReceipt(item.id)} style={{ background:'none', border:`1px solid ${C.ac}44`, borderRadius:6, padding:'4px 10px', color:C.ac, fontSize:11, cursor:'pointer' }}>영수증첨부</button>
+                )}
                 <button onClick={() => startEdit(item)} style={{ background:'none', border:`1px solid ${C.ac}44`, borderRadius:6, padding:'4px 10px', color:C.ac, fontSize:11, cursor:'pointer' }}>수정</button>
                 <button onClick={() => handleDelete(item)} style={{ background:'none', border:`1px solid ${C.no}44`, borderRadius:6, padding:'4px 10px', color:C.no, fontSize:11, cursor:'pointer' }}>삭제</button>
               </div>
@@ -402,14 +438,12 @@ function ReceiptTab({ data, add, remove, update }) {
           <div style={{ ...MB.card, textAlign: 'center', padding: 24 }}>
             <div style={{ display: 'flex', gap: 12 }}>
               <div onClick={() => fileRef.current?.click()} style={{ flex: 1, cursor: 'pointer', padding: 20, background: C.sf2, borderRadius: 12, border: `1px solid ${C.bd}` }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>📷</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.ac }}>촬영하기</div>
-                <div style={{ fontSize: 11, color: C.txd, marginTop: 3 }}>카메라로 촬영</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.ac, marginBottom: 6 }}>영수증첨부</div>
+                <div style={{ fontSize: 12, color: C.txd }}>카메라로 촬영</div>
               </div>
               <div onClick={() => galleryRef.current?.click()} style={{ flex: 1, cursor: 'pointer', padding: 20, background: C.sf2, borderRadius: 12, border: `1px solid ${C.bd}` }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>🖼️</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.ac }}>앨범에서 선택</div>
-                <div style={{ fontSize: 11, color: C.txd, marginTop: 3 }}>저장된 사진 업로드</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.ac, marginBottom: 6 }}>앨범선택</div>
+                <div style={{ fontSize: 12, color: C.txd }}>저장된 사진 업로드</div>
               </div>
             </div>
             <div style={{ fontSize: 11, color: C.txm, marginTop: 10 }}>보관함에 저장 → PC에서 거래내역과 연결</div>

@@ -1,13 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { C, REV_CATS } from '../config';
 import { fmt, today, exportToExcel } from '../utils';
 import { PageTitle, FormGrid, DataTable, SummaryBar, Badge, ExportBtn, DateRangeFilter, filterDateRange } from '../components/ui';
 
-export default function Revenue({ data, add, remove, S }) {
+export default function Revenue({ data, add, remove, update, S }) {
   const { revenue: items, clients } = data;
   const [f, sF] = useState({ date:today(), client:'', description:'', amount:'', category:'광고대행수수료', memo:'' });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [editMemoId, setEditMemoId] = useState(null);
+  const [editMemoVal, setEditMemoVal] = useState('');
 
   const filtered = useMemo(() => filterDateRange(items, dateFrom, dateTo), [items, dateFrom, dateTo]);
 
@@ -17,12 +19,44 @@ export default function Revenue({ data, add, remove, S }) {
       sF({ date:today(), client:'', description:'', amount:'', category:'광고대행수수료', memo:'' });
   };
 
+  const handleCategoryChange = async (row, newCat) => {
+    await update('revenue', row.id, { category: newCat });
+  };
+
+  const startMemoEdit = (row) => {
+    setEditMemoId(row.id);
+    setEditMemoVal(row.memo || '');
+  };
+
+  const saveMemo = async (id) => {
+    await update('revenue', id, { memo: editMemoVal });
+    setEditMemoId(null);
+    setEditMemoVal('');
+  };
+
   const cols = [
     { key:'date', label:'날짜' },
     { key:'client', label:'거래처', style:{ fontWeight:600 } },
-    { key:'category', label:'분류', render:r => <Badge color={C.ok} S={S}>{r.category}</Badge> },
+    { key:'category', label:'분류', render:r => (
+      <select value={r.category || '기타매출'} onChange={e => handleCategoryChange(r, e.target.value)}
+        style={{ background:C.ok+'22', color:C.ok, border:`1px solid ${C.ok}44`, borderRadius:10, padding:'3px 8px', fontSize:11, fontWeight:600, cursor:'pointer', outline:'none' }}>
+        {REV_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+    )},
     { key:'description', label:'내용' },
     { key:'amount', label:'금액', style:{ fontWeight:600, color:C.ok }, render:r => `₩${fmt(r.amount)}` },
+    { key:'memo', label:'메모', render:r => editMemoId === r.id ? (
+      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+        <input value={editMemoVal} onChange={e => setEditMemoVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveMemo(r.id)}
+          style={{ ...S.inp, padding:'4px 8px', fontSize:12, width:120 }} autoFocus placeholder="메모 입력" />
+        <button onClick={() => saveMemo(r.id)} style={{ background:C.ac, color:'#fff', border:'none', borderRadius:6, padding:'4px 8px', fontSize:11, cursor:'pointer', whiteSpace:'nowrap' }}>저장</button>
+        <button onClick={() => setEditMemoId(null)} style={{ background:'none', border:`1px solid ${C.bd}`, borderRadius:6, padding:'4px 8px', fontSize:11, cursor:'pointer', color:C.txd }}>취소</button>
+      </div>
+    ) : (
+      <span onClick={() => startMemoEdit(r)} style={{ cursor:'pointer', fontSize:12, color: r.memo ? C.tx : C.txm }}>
+        {r.memo || '메모 입력'}
+      </span>
+    )},
   ];
 
   return (

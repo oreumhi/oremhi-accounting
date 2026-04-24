@@ -1,15 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { C, EXP_CATS, PAY_METHODS, pmColor } from '../config';
 import { fmt, today, exportToExcel, checkDuplicate } from '../utils';
+import { uploadImage } from '../store';
 import { PageTitle, NoteBox, FormGrid, DataTable, SummaryBar, FilterBar, Badge, ExportBtn, DateRangeFilter, filterDateRange } from '../components/ui';
 
-export default function Expense({ data, add, remove, S }) {
+export default function Expense({ data, add, remove, update, S }) {
   const { expenses: items, clients, favorites } = data;
   const [f, sF] = useState({ date:today(), pay_method:'법인카드', client:'', description:'', amount:'', category:'식대', card_name:'', memo:'' });
   const [fil, sFil] = useState('전체');
   const [showFav, setShowFav] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [editMemoId, setEditMemoId] = useState(null);
+  const [editMemoVal, setEditMemoVal] = useState('');
+  const [uploadingId, setUploadingId] = useState(null);
+  const receiptRef = useRef(null);
+  const receiptTargetId = useRef(null);
 
   const isCard = ['법인카드','개인카드','체크카드'].includes(f.pay_method);
 
@@ -33,6 +39,46 @@ export default function Expense({ data, add, remove, S }) {
     setShowFav(false);
   };
 
+  const handleCategoryChange = async (row, newCat) => {
+    await update('expenses', row.id, { category: newCat });
+  };
+
+  const startMemoEdit = (row) => {
+    setEditMemoId(row.id);
+    setEditMemoVal(row.memo || '');
+  };
+
+  const saveMemo = async (id) => {
+    await update('expenses', id, { memo: editMemoVal });
+    setEditMemoId(null);
+    setEditMemoVal('');
+  };
+
+  const triggerReceiptUpload = (rowId) => {
+    receiptTargetId.current = rowId;
+    receiptRef.current?.click();
+  };
+
+  const handleReceiptFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !receiptTargetId.current) return;
+    const id = receiptTargetId.current;
+    setUploadingId(id);
+    try {
+      const image_url = await uploadImage(file);
+      if (image_url) {
+        await update('expenses', id, { image_url });
+      } else {
+        alert('이미지 업로드에 실패했습니다. Supabase Storage 설정을 확인해주세요.');
+      }
+    } catch (err) {
+      alert('업로드 중 오류가 발생했습니다.');
+    }
+    setUploadingId(null);
+    receiptTargetId.current = null;
+    if (receiptRef.current) receiptRef.current.value = '';
+  };
+
   const filtered = useMemo(() => {
     let result = filterDateRange(items, dateFrom, dateTo);
     if (fil !== '전체') result = result.filter(i => (i.pay_method || i.payMethod) === fil);
@@ -46,13 +92,40 @@ export default function Expense({ data, add, remove, S }) {
     { key:'pay_method', label:'결제수단', render:r => <Badge color={pmColor(r.pay_method||r.payMethod||'기타')} S={S}>{r.pay_method||r.payMethod||'기타'}</Badge> },
     { key:'client', label:'사용처', style:{ fontWeight:500 } },
     { key:'description', label:'내용' },
-    { key:'category', label:'분류', render:r => <span style={{ fontSize:11, color:C.txd }}>{r.category}</span> },
+    { key:'category', label:'분류', render:r => (
+      <select value={r.category || '기타'} onChange={e => handleCategoryChange(r, e.target.value)}
+        style={{ background:C.sf2, color:C.txd, border:`1px solid ${C.bd}`, borderRadius:6, padding:'3px 6px', fontSize:11, cursor:'pointer', outline:'none' }}>
+        {EXP_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+      </select>
+    )},
     { key:'amount', label:'금액', style:{ fontWeight:600, color:C.no }, render:r => `₩${fmt(r.amount)}` },
-    { key:'image_url', label:'📷', render:r => r.image_url ? <a href={r.image_url} target="_blank" rel="noopener" style={{ color:C.ac, fontSize:12 }}>보기</a> : '' },
+    { key:'memo', label:'메모', render:r => editMemoId === r.id ? (
+      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+        <input value={editMemoVal} onChange={e => setEditMemoVal(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveMemo(r.id)}
+          style={{ ...S.inp, padding:'4px 8px', fontSize:12, width:120 }} autoFocus placeholder="메모 입력" />
+        <button onClick={() => saveMemo(r.id)} style={{ background:C.ac, color:'#fff', border:'none', borderRadius:6, padding:'4px 8px', fontSize:11, cursor:'pointer', whiteSpace:'nowrap' }}>저장</button>
+        <button onClick={() => setEditMemoId(null)} style={{ background:'none', border:`1px solid ${C.bd}`, borderRadius:6, padding:'4px 8px', fontSize:11, cursor:'pointer', color:C.txd }}>취소</button>
+      </div>
+    ) : (
+      <span onClick={() => startMemoEdit(r)} style={{ cursor:'pointer', fontSize:12, color: r.memo ? C.tx : C.txm }}>
+        {r.memo || '메모 입력'}
+      </span>
+    )},
+    { key:'image_url', label:'영수증', render:r => r.image_url ? (
+      <a href={r.image_url} target="_blank" rel="noopener" style={{ color:C.ac, fontSize:11, textDecoration:'underline' }}>보기</a>
+    ) : uploadingId === r.id ? (
+      <span style={{ fontSize:11, color:C.txm }}>업로드중...</span>
+    ) : (
+      <button onClick={() => triggerReceiptUpload(r.id)}
+        style={{ background:'none', border:`1px solid ${C.ac}44`, borderRadius:6, padding:'3px 8px', fontSize:11, color:C.ac, cursor:'pointer', whiteSpace:'nowrap' }}>
+        영수증첨부
+      </button>
+    )},
   ];
 
   return (
     <div>
+      <input ref={receiptRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleReceiptFile} />
       <PageTitle>지출 관리</PageTitle>
       <NoteBox S={S}>카드 · 현금 · 계좌이체 · 네이버페이 · 배달의민족 · 카카오페이 등 모든 지출 통합관리 | ⚠️ 같은 날짜·금액 중복 입력 시 경고</NoteBox>
       <div style={S.card}>
