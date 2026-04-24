@@ -52,9 +52,22 @@ export const TABS = [
   { id:'settings', label:'설정', icon:'⚙️' },
 ];
 
-// ─── 카테고리 ───
-export const EXP_CATS = ['광고비','사무용품','통신비','교통비','주유비','주차비','식대','배달비','접대비','임대료','수도광열비','보험료','세금공과','수리비','택배비','도서인쇄비','교육훈련비','경조사비','소모품','구독료','복리후생비','감가상각비','기타'];
-export const REV_CATS = ['광고대행수수료','컨설팅비','디자인제작비','영상제작비','미디어커미션','기타매출'];
+// ─── 카테고리 (사용자 정의 가능) ───
+const DEFAULT_EXP_CATS = ['광고비','사무용품','통신비','교통비','주유비','주차비','식대','배달비','접대비','임대료','수도광열비','보험료','세금공과','수리비','택배비','도서인쇄비','교육훈련비','경조사비','소모품','구독료','복리후생비','감가상각비','기타'];
+const DEFAULT_REV_CATS = ['광고대행수수료','컨설팅비','디자인제작비','영상제작비','미디어커미션','기타매출'];
+
+function loadCustomCats(key, defaults) {
+  try { const s = localStorage.getItem(key); if (s) return JSON.parse(s); } catch {}
+  return [...defaults];
+}
+
+export let EXP_CATS = loadCustomCats('oh_exp_cats', DEFAULT_EXP_CATS);
+export let REV_CATS = loadCustomCats('oh_rev_cats', DEFAULT_REV_CATS);
+
+export function updateExpCats(cats) { EXP_CATS = cats; localStorage.setItem('oh_exp_cats', JSON.stringify(cats)); }
+export function updateRevCats(cats) { REV_CATS = cats; localStorage.setItem('oh_rev_cats', JSON.stringify(cats)); }
+export function resetCats() { updateExpCats([...DEFAULT_EXP_CATS]); updateRevCats([...DEFAULT_REV_CATS]); }
+export { DEFAULT_EXP_CATS, DEFAULT_REV_CATS };
 export const PAY_METHODS = ['법인카드','개인카드','체크카드','현금','계좌이체','네이버페이','카카오페이','배달의민족','쿠팡페이','토스','기타'];
 export const REC_TYPES = ['구독서비스','임대료','보험료','통신비','수도광열비','대출이자','리스료','유지보수비','기타'];
 export const REC_CYCLES = ['매월','매분기','매년'];

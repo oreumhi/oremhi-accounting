@@ -1,14 +1,91 @@
 import React, { useState, useRef } from 'react';
-import { C, FONT_SIZES } from '../config';
+import { C, FONT_SIZES, EXP_CATS, REV_CATS, updateExpCats, updateRevCats, resetCats, DEFAULT_EXP_CATS, DEFAULT_REV_CATS } from '../config';
 import { hashPin, exportAllToExcel } from '../utils';
 import { saveSettings, exportBackup, importBackup } from '../store';
 import { PageTitle, NoteBox } from '../components/ui';
+
+// 분류 항목 하나 (클릭→수정, ✕→삭제)
+function CatTag({ name, onRename, onDelete, S }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(name);
+
+  const save = () => {
+    const trimmed = val.trim();
+    if (trimmed && trimmed !== name) onRename(name, trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:C.ac+'15', border:`1px solid ${C.ac}55`, borderRadius:8, padding:'3px 6px' }}>
+        <input value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+          style={{ ...S.inp, padding:'3px 6px', fontSize:12, width: Math.max(60, val.length * 14 + 20), border:'none', background:'transparent', color:C.tx }}
+          autoFocus onBlur={save} />
+      </span>
+    );
+  }
+
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:C.sf2, border:`1px solid ${C.bd}`, borderRadius:8, padding:'5px 10px', fontSize:12 }}>
+      <span onClick={() => { setVal(name); setEditing(true); }} style={{ cursor:'pointer' }} title="클릭하여 이름 수정">{name}</span>
+      <button onClick={() => onDelete(name)} style={{ background:'none', border:'none', color:C.no, cursor:'pointer', fontSize:14, padding:0, marginLeft:2 }} title="삭제">✕</button>
+    </span>
+  );
+}
 
 export default function Settings({ data, settings, setSettings, restoreBackup, S }) {
   const [pin, setPin] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const [msg, setMsg] = useState('');
   const fileRef = useRef();
+  const [expCats, setExpCats] = useState([...EXP_CATS]);
+  const [revCats, setRevCats] = useState([...REV_CATS]);
+  const [newExpCat, setNewExpCat] = useState('');
+  const [newRevCat, setNewRevCat] = useState('');
+
+  // 지출 분류 조작
+  const renameExpCat = (oldName, newName) => {
+    if (expCats.includes(newName)) return setMsg('❌ "' + newName + '"은 이미 있는 분류입니다.');
+    const next = expCats.map(c => c === oldName ? newName : c);
+    setExpCats(next); updateExpCats(next);
+    setMsg('✅ 지출 분류 "' + oldName + '" → "' + newName + '" 변경됨');
+  };
+  const deleteExpCat = (name) => {
+    if (!confirm('"' + name + '" 분류를 삭제하시겠습니까?')) return;
+    const next = expCats.filter(c => c !== name);
+    setExpCats(next); updateExpCats(next);
+    setMsg('✅ 지출 분류 "' + name + '" 삭제됨');
+  };
+  const addExpCat = () => {
+    if (!newExpCat.trim()) return;
+    if (expCats.includes(newExpCat.trim())) return setMsg('❌ "' + newExpCat.trim() + '"은 이미 있는 분류입니다.');
+    const next = [...expCats, newExpCat.trim()];
+    setExpCats(next); updateExpCats(next);
+    setMsg('✅ 지출 분류 "' + newExpCat.trim() + '" 추가됨');
+    setNewExpCat('');
+  };
+
+  // 매출 분류 조작
+  const renameRevCat = (oldName, newName) => {
+    if (revCats.includes(newName)) return setMsg('❌ "' + newName + '"은 이미 있는 분류입니다.');
+    const next = revCats.map(c => c === oldName ? newName : c);
+    setRevCats(next); updateRevCats(next);
+    setMsg('✅ 매출 분류 "' + oldName + '" → "' + newName + '" 변경됨');
+  };
+  const deleteRevCat = (name) => {
+    if (!confirm('"' + name + '" 분류를 삭제하시겠습니까?')) return;
+    const next = revCats.filter(c => c !== name);
+    setRevCats(next); updateRevCats(next);
+    setMsg('✅ 매출 분류 "' + name + '" 삭제됨');
+  };
+  const addRevCat = () => {
+    if (!newRevCat.trim()) return;
+    if (revCats.includes(newRevCat.trim())) return setMsg('❌ "' + newRevCat.trim() + '"은 이미 있는 분류입니다.');
+    const next = [...revCats, newRevCat.trim()];
+    setRevCats(next); updateRevCats(next);
+    setMsg('✅ 매출 분류 "' + newRevCat.trim() + '" 추가됨');
+    setNewRevCat('');
+  };
 
   // 글자 크기 변경
   const changeFontSize = async (size) => {
@@ -84,6 +161,50 @@ export default function Settings({ data, settings, setSettings, restoreBackup, S
               <div style={{fontSize:11,color:C.txd,marginTop:2}}>{size}px</div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* 분류 항목 관리 */}
+      <div style={S.card}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:14}}>📂 분류 항목 관리</div>
+        <NoteBox S={S}>항목 이름을 클릭하면 수정할 수 있습니다. ✕를 누르면 삭제됩니다. 변경 즉시 반영됩니다.</NoteBox>
+
+        {/* 지출 분류 */}
+        <div style={{marginTop:14,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:C.no}}>지출 분류 ({expCats.length}개)</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+            {expCats.map(cat => (
+              <CatTag key={cat} name={cat} onRename={renameExpCat} onDelete={deleteExpCat} S={S} />
+            ))}
+          </div>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input style={{...S.inp,width:160}} placeholder="새 지출 분류명" value={newExpCat} onChange={e => setNewExpCat(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addExpCat(); }} />
+            <button onClick={addExpCat} style={{...S.btn,padding:'8px 14px',fontSize:12}}>추가</button>
+          </div>
+        </div>
+
+        {/* 매출 분류 */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:C.ok}}>매출 분류 ({revCats.length}개)</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+            {revCats.map(cat => (
+              <CatTag key={cat} name={cat} onRename={renameRevCat} onDelete={deleteRevCat} S={S} />
+            ))}
+          </div>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input style={{...S.inp,width:160}} placeholder="새 매출 분류명" value={newRevCat} onChange={e => setNewRevCat(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addRevCat(); }} />
+            <button onClick={addRevCat} style={{...S.btn,padding:'8px 14px',fontSize:12}}>추가</button>
+          </div>
+        </div>
+
+        {/* 초기화 + 적용 */}
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <button onClick={() => { resetCats(); setExpCats([...DEFAULT_EXP_CATS]); setRevCats([...DEFAULT_REV_CATS]); setMsg('✅ 분류가 기본값으로 초기화되었습니다.'); }}
+            style={{...S.btn,background:C.sf2,color:C.txd,border:`1px solid ${C.bd}`,padding:'8px 14px',fontSize:12}}>기본값으로 초기화</button>
+          <button onClick={() => window.location.reload()}
+            style={{...S.btn,background:C.ok,padding:'8px 14px',fontSize:12}}>새로고침하여 적용</button>
         </div>
       </div>
 
