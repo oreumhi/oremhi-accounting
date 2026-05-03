@@ -14,6 +14,7 @@ export default function Expense({ data, add, remove, update, S }) {
   const [editMemoId, setEditMemoId] = useState(null);
   const [editMemoVal, setEditMemoVal] = useState('');
   const [uploadingId, setUploadingId] = useState(null);
+  const [pickerOpenFor, setPickerOpenFor] = useState(null); // 영수증 선택 모달 대상 지출 id
   const receiptRef = useRef(null);
   const receiptTargetId = useRef(null);
 
@@ -54,9 +55,16 @@ export default function Expense({ data, add, remove, update, S }) {
     setEditMemoVal('');
   };
 
-  const triggerReceiptUpload = (rowId) => {
+  // 영수증첨부 → 모달 열기
+  const openReceiptPicker = (rowId) => {
+    setPickerOpenFor(rowId);
+  };
+
+  // 모달에서: 새 파일 업로드
+  const triggerNewFileUpload = (rowId) => {
     receiptTargetId.current = rowId;
     receiptRef.current?.click();
+    setPickerOpenFor(null);
   };
 
   const handleReceiptFile = async (e) => {
@@ -77,6 +85,29 @@ export default function Expense({ data, add, remove, update, S }) {
     setUploadingId(null);
     receiptTargetId.current = null;
     if (receiptRef.current) receiptRef.current.value = '';
+  };
+
+  // 모달에서: 보관함 영수증 선택
+  const linkFromStorage = async (expenseId, receipt) => {
+    setUploadingId(expenseId);
+    try {
+      await update('expenses', expenseId, { image_url: receipt.image_url });
+      await update('receiptStorage', receipt.id, { linked: true, linked_expense_id: expenseId });
+    } catch (err) {
+      alert('연결 중 오류가 발생했습니다.');
+    }
+    setUploadingId(null);
+    setPickerOpenFor(null);
+  };
+
+  // 매칭 점수 계산 (높을수록 우선): 2=날짜+금액, 1=날짜만, 0=불일치
+  const matchScore = (receipt, expense) => {
+    if (!receipt || !expense) return 0;
+    const sameDate = receipt.date && expense.date && receipt.date === expense.date;
+    const sameAmount = Math.abs(Number(receipt.amount || 0) - Number(expense.amount || 0)) < 1;
+    if (sameDate && sameAmount) return 2;
+    if (sameDate) return 1;
+    return 0;
   };
 
   const filtered = useMemo(() => {
@@ -116,7 +147,7 @@ export default function Expense({ data, add, remove, update, S }) {
     ) : uploadingId === r.id ? (
       <span style={{ fontSize:11, color:C.txm }}>업로드중...</span>
     ) : (
-      <button onClick={() => triggerReceiptUpload(r.id)}
+      <button onClick={() => openReceiptPicker(r.id)}
         style={{ background:'none', border:`1px solid ${C.ac}44`, borderRadius:6, padding:'3px 8px', fontSize:11, color:C.ac, cursor:'pointer', whiteSpace:'nowrap' }}>
         영수증첨부
       </button>
@@ -168,6 +199,100 @@ export default function Expense({ data, add, remove, update, S }) {
       <FilterBar options={['전체',...PAY_METHODS]} value={fil} onChange={sFil} S={S} />
       <SummaryBar label={`${fil==='전체'?'조회 지출':fil+' 지출'} (${filtered.length}건)`} amount={total} color={C.no} S={S} />
       <DataTable columns={cols} data={[...filtered].reverse()} onDelete={id => remove('expenses',id)} emptyText="지출 내역 없음" S={S} />
+
+      {/* ─── 영수증 첨부 모달 ─── */}
+      {pickerOpenFor && (() => {
+        const expense = items.find(i => i.id === pickerOpenFor);
+        if (!expense) return null;
+
+        const allReceipts = (data.receiptStorage || []).filter(r => !r.linked);
+        // 매칭 점수 + 정렬 (높은 점수 우선)
+        const scored = allReceipts.map(r => ({ ...r, _score: matchScore(r, expense) }));
+        scored.sort((a, b) => b._score - a._score || (b.date || '').localeCompare(a.date || ''));
+
+        const exactMatchCount = scored.filter(r => r._score === 2).length;
+        const dateMatchCount = scored.filter(r => r._score === 1).length;
+
+        return (
+          <div onClick={() => setPickerOpenFor(null)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ background:C.sf, borderRadius:12, border:`1px solid ${C.bd}`, width:'100%', maxWidth:680, maxHeight:'85vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+
+              {/* 헤더 */}
+              <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.bd}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontSize:15, fontWeight:700 }}>영수증 첨부</div>
+                  <div style={{ fontSize:11, color:C.txd, marginTop:3 }}>
+                    {expense.date} · {expense.client || '-'} · ₩{fmt(expense.amount)}
+                  </div>
+                </div>
+                <button onClick={() => setPickerOpenFor(null)} style={{ background:'none', border:'none', fontSize:20, color:C.txd, cursor:'pointer' }}>✕</button>
+              </div>
+
+              {/* 새 파일 업로드 */}
+              <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.bd}` }}>
+                <button onClick={() => triggerNewFileUpload(pickerOpenFor)}
+                  style={{ ...S.btn, width:'100%', padding:'12px', fontSize:13 }}>
+                  📎 새 파일 업로드 (이미지 선택)
+                </button>
+              </div>
+
+              {/* 보관함 매칭 안내 */}
+              <div style={{ padding:'10px 20px', background:C.sf2, fontSize:11, color:C.txd, display:'flex', gap:14, flexWrap:'wrap' }}>
+                <span>📸 영수증 보관함 ({allReceipts.length}건)</span>
+                {exactMatchCount > 0 && <span style={{ color:C.no, fontWeight:600 }}>🔴 날짜+금액 일치 {exactMatchCount}건</span>}
+                {dateMatchCount > 0 && <span style={{ color:C.ok, fontWeight:600 }}>🟢 날짜 일치 {dateMatchCount}건</span>}
+              </div>
+
+              {/* 보관함 목록 */}
+              <div style={{ overflowY:'auto', flex:1 }}>
+                {scored.length === 0 ? (
+                  <div style={{ padding:30, textAlign:'center', color:C.txm, fontSize:12 }}>보관함에 미연결 영수증이 없습니다</div>
+                ) : (
+                  scored.map(r => {
+                    const bg = r._score === 2 ? C.no+'18' : r._score === 1 ? C.ok+'15' : 'transparent';
+                    const border = r._score === 2 ? `1px solid ${C.no}55` : r._score === 1 ? `1px solid ${C.ok}55` : `1px solid ${C.bd}`;
+                    const tag = r._score === 2 ? <span style={{ fontSize:10, fontWeight:700, color:C.no, background:C.no+'22', padding:'2px 6px', borderRadius:4 }}>날짜+금액 일치</span>
+                              : r._score === 1 ? <span style={{ fontSize:10, fontWeight:700, color:C.ok, background:C.ok+'22', padding:'2px 6px', borderRadius:4 }}>날짜 일치</span>
+                              : null;
+                    return (
+                      <div key={r.id}
+                        style={{ display:'flex', gap:12, padding:'10px 20px', borderBottom:`1px solid ${C.bd}`, background:bg, alignItems:'center' }}>
+                        {r.image_url && (
+                          <img src={r.image_url} alt="" style={{ width:48, height:48, objectFit:'cover', borderRadius:6, border, flexShrink:0 }} />
+                        )}
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                            <span style={{ fontSize:13, fontWeight:600 }}>{r.client || '(거래처 없음)'}</span>
+                            {tag}
+                          </div>
+                          <div style={{ fontSize:11, color:C.txd }}>
+                            {r.date || '-'} · ₩{fmt(r.amount || 0)}
+                            {r.memo && <> · {r.memo}</>}
+                          </div>
+                        </div>
+                        <button onClick={() => linkFromStorage(pickerOpenFor, r)}
+                          style={{ ...S.btn, padding:'6px 14px', fontSize:12, flexShrink:0 }}>
+                          연결
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* 푸터 */}
+              <div style={{ padding:'10px 20px', borderTop:`1px solid ${C.bd}`, display:'flex', justifyContent:'flex-end' }}>
+                <button onClick={() => setPickerOpenFor(null)}
+                  style={{ background:'none', border:`1px solid ${C.bd}`, color:C.txd, padding:'7px 14px', borderRadius:7, fontSize:12, cursor:'pointer' }}>
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
