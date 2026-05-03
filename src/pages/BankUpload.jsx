@@ -185,8 +185,27 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
           setError('지원하지 않는 엑셀 양식입니다.\n현재 신한은행 체크카드/법인계좌 거래내역만 지원합니다.');
           return;
         }
+        // 중복 자동 감지 → 중복 항목 자동 선택 해제
+        let dupCount = 0;
+        const checked = parsed.map(item => {
+          if (item._skipped) return item;
+          const existing = item._type === 'income' ? data.revenue : data.expenses;
+          const isDup = existing.some(ex =>
+            ex.date === item.date &&
+            Math.abs(Number(ex.amount) - Number(item.amount)) < 1 &&
+            ex.client === item.client
+          );
+          if (isDup) {
+            dupCount++;
+            return { ...item, _selected: false, _isDuplicate: true };
+          }
+          return item;
+        });
         setFileType('신한은행 체크카드/법인계좌');
-        setItems(parsed);
+        setItems(checked);
+        if (dupCount > 0) {
+          alert(`기존 데이터와 중복된 ${dupCount}건이 자동으로 선택 해제되었습니다.\n필요하면 수동으로 다시 선택할 수 있습니다.`);
+        }
       } catch (err) { setError('엑셀 파일 읽기 실패: ' + err.message); }
     };
     reader.readAsArrayBuffer(file);
@@ -274,14 +293,37 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
     if (saving) return; // 중복 클릭 방지
     const selected = items.filter(i => i._selected);
     if (selected.length === 0) return alert('저장할 항목을 선택해주세요');
+
+    // 중복 항목 분리
     const dupes = selected.filter(isDuplicate);
-    if (dupes.length > 0 && !confirm(`⚠️ ${dupes.length}건의 중복 항목이 있습니다.\n그래도 저장하시겠습니까?`)) return;
+    const nonDupes = selected.filter(i => !isDuplicate(i));
+
+    let toSave = selected;
+
+    if (dupes.length > 0) {
+      // 사용자에게 3가지 선택지 제시:
+      //   확인 → 중복 제외하고 저장 (안전)
+      //   취소 → 저장 중단
+      //   (중복 포함 저장은 의도적으로 막음 - 실수 방지)
+      const msg =
+        `⚠️ ${dupes.length}건의 중복 항목이 발견되었습니다.\n\n` +
+        `· 중복 제외하고 ${nonDupes.length}건만 저장 → [확인]\n` +
+        `· 저장 중단 → [취소]\n\n` +
+        `(중복 포함 저장이 필요하면 취소 후 체크박스를 직접 조정하세요)`;
+      if (!confirm(msg)) return;
+      toSave = nonDupes;
+    }
+
+    if (toSave.length === 0) {
+      alert('저장할 항목이 없습니다.');
+      return;
+    }
 
     setSaving(true);
     let totalSuccess = 0, totalFail = 0;
 
     // 영수증 이미지가 있는 항목은 먼저 업로드
-    for (const item of selected) {
+    for (const item of toSave) {
       if (item._imageFile) {
         const url = await uploadImage(item._imageFile);
         item._imageUrl = url;
@@ -294,17 +336,22 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
       }
     }
 
-    const incomes = selected.filter(i => i._type === 'income').map(i => ({
+    const incomes = toSave.filter(i => i._type === 'income').map(i => ({
       date: i.date, client: i.client, description: i.description, amount: i.amount,
       category: i.category, memo: i.memo, image_url: i._imageUrl || null,
     }));
-    const expenses = selected.filter(i => i._type === 'expense').map(i => ({
+    const expenses = toSave.filter(i => i._type === 'expense').map(i => ({
       date: i.date, client: i.client, description: i.description, amount: i.amount,
       category: i.category, pay_method: i.pay_method, memo: i.memo, image_url: i._imageUrl || null,
     }));
 
     if (incomes.length > 0) { const r = await addBulk('revenue', incomes); totalSuccess += r.success; totalFail += r.fail; }
     if (expenses.length > 0) { const r = await addBulk('expenses', expenses); totalSuccess += r.success; totalFail += r.fail; }
+
+    // 마지막 업로드 시간 저장
+    if (totalSuccess > 0) {
+      localStorage.setItem('oh_last_upload', new Date().toISOString());
+    }
 
     setResult({ success: totalSuccess, fail: totalFail, incomes: incomes.length, expenses: expenses.length });
     setSaving(false);
@@ -322,7 +369,7 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
       <div style={S.note}>
         · 신한은행 체크카드/법인계좌 거래내역 엑셀 파일을 올려주세요<br />
         · 저장된 분류 규칙에 따라 자동으로 분류됩니다 (수정 가능)<br />
-        · 같은 파일을 다시 올리면 중복을 감지합니다<br />
+        · 같은 파일을 다시 올리면 중복을 자동 감지하여 선택 해제합니다<br />
         · 신용카드 이용내역은 추후 지원 예정입니다
       </div>
 
@@ -453,7 +500,7 @@ export default function BankUpload({ data, add, addBulk, remove, update, S }) {
               </thead>
               <tbody>
                 {items.map(item => {
-                  const dup = isDuplicate(item);
+                  const dup = item._isDuplicate || isDuplicate(item);
                   const skipped = item._skipped;
                   const rowBg = skipped ? C.sf3 + '44' : dup ? C.warn + '08' : 'transparent';
                   const textColor = skipped ? C.txm : C.tx;

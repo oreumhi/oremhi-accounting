@@ -62,9 +62,31 @@ export default function Dashboard({ data, S }) {
     ...revenue.map(r => ({ ...r, _t: '매출', _c: C.ok, _s: '매출' })),
   ].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 6);
 
+  // 마지막 거래내역 업로드 시간
+  const lastUpload = (() => {
+    try {
+      const ts = localStorage.getItem('oh_last_upload');
+      if (!ts) return null;
+      const d = new Date(ts);
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${mo}-${day} ${h}:${min}`;
+    } catch { return null; }
+  })();
+
   return (
     <div>
-      <PageTitle>대시보드</PageTitle>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <PageTitle>대시보드</PageTitle>
+        {lastUpload && (
+          <span style={{ fontSize: 11, color: C.txm }}>
+            마지막 거래내역 업로드: {lastUpload}
+          </span>
+        )}
+      </div>
 
       {/* 세금 마감 알림 */}
       {deadlines.length > 0 && (
