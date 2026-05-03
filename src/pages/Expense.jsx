@@ -15,6 +15,8 @@ export default function Expense({ data, add, remove, update, S }) {
   const [editMemoVal, setEditMemoVal] = useState('');
   const [uploadingId, setUploadingId] = useState(null);
   const [pickerOpenFor, setPickerOpenFor] = useState(null); // 영수증 선택 모달 대상 지출 id
+  const [sortBy, setSortBy] = useState('date_desc'); // date_desc | date_asc | amount_desc | amount_asc
+  const [receiptFil, setReceiptFil] = useState('전체'); // 전체 | 등록 | 미등록
   const receiptRef = useRef(null);
   const receiptTargetId = useRef(null);
 
@@ -113,10 +115,29 @@ export default function Expense({ data, add, remove, update, S }) {
   const filtered = useMemo(() => {
     let result = filterDateRange(items, dateFrom, dateTo);
     if (fil !== '전체') result = result.filter(i => (i.pay_method || i.payMethod) === fil);
-    return result;
-  }, [items, dateFrom, dateTo, fil]);
+    if (receiptFil === '등록') result = result.filter(i => i.image_url);
+    else if (receiptFil === '미등록') result = result.filter(i => !i.image_url);
+    // 정렬 적용
+    const sorted = [...result];
+    if (sortBy === 'date_desc') sorted.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    else if (sortBy === 'date_asc') sorted.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    else if (sortBy === 'amount_desc') sorted.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
+    else if (sortBy === 'amount_asc') sorted.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
+    return sorted;
+  }, [items, dateFrom, dateTo, fil, receiptFil, sortBy]);
   const total = filtered.reduce((s,i) => s+Number(i.amount), 0);
   const expFavs = (favorites || []).filter(fv => fv.table_name === 'expenses');
+  const receiptStats = useMemo(() => {
+    const base = items.filter(i => {
+      const dateOk = (!dateFrom || i.date >= dateFrom) && (!dateTo || i.date <= dateTo);
+      const payOk = fil === '전체' || (i.pay_method || i.payMethod) === fil;
+      return dateOk && payOk;
+    });
+    return {
+      withReceipt: base.filter(i => i.image_url).length,
+      withoutReceipt: base.filter(i => !i.image_url).length,
+    };
+  }, [items, dateFrom, dateTo, fil]);
 
   const cols = [
     { key:'date', label:'날짜' },
@@ -197,8 +218,45 @@ export default function Expense({ data, add, remove, update, S }) {
       </div>
       <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} onReset={() => { setDateFrom(''); setDateTo(''); }} S={S} />
       <FilterBar options={['전체',...PAY_METHODS]} value={fil} onChange={sFil} S={S} />
-      <SummaryBar label={`${fil==='전체'?'조회 지출':fil+' 지출'} (${filtered.length}건)`} amount={total} color={C.no} S={S} />
-      <DataTable columns={cols} data={[...filtered].reverse()} onDelete={id => remove('expenses',id)} emptyText="지출 내역 없음" S={S} />
+
+      {/* ─── 정렬 + 영수증 필터 ─── */}
+      <div style={{ display:'flex', gap:14, alignItems:'center', flexWrap:'wrap', margin:'10px 0 8px', padding:'10px 12px', background:C.sf2, borderRadius:8, border:`1px solid ${C.bd}` }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:12, color:C.txd, fontWeight:600 }}>정렬:</span>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            style={{ ...S.sel, padding:'5px 10px', fontSize:12, width:'auto', minWidth:140 }}>
+            <option value="date_desc">날짜 ↓ (최신순)</option>
+            <option value="date_asc">날짜 ↑ (오래된순)</option>
+            <option value="amount_desc">금액 ↓ (높은순)</option>
+            <option value="amount_asc">금액 ↑ (낮은순)</option>
+          </select>
+        </div>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:12, color:C.txd, fontWeight:600 }}>영수증:</span>
+          {[
+            { key:'전체', label:'전체', count: receiptStats.withReceipt + receiptStats.withoutReceipt },
+            { key:'등록', label:'등록됨', count: receiptStats.withReceipt, color: C.ok },
+            { key:'미등록', label:'미등록', count: receiptStats.withoutReceipt, color: C.warn },
+          ].map(opt => {
+            const active = receiptFil === opt.key;
+            return (
+              <button key={opt.key} onClick={() => setReceiptFil(opt.key)}
+                style={{
+                  padding:'5px 12px', borderRadius:6, fontSize:12, cursor:'pointer',
+                  border: `1px solid ${active ? (opt.color || C.ac) : C.bd}`,
+                  background: active ? (opt.color || C.ac)+'22' : 'transparent',
+                  color: active ? (opt.color || C.ac) : C.txd,
+                  fontWeight: active ? 600 : 400,
+                }}>
+                {opt.label} ({opt.count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <SummaryBar label={`${fil==='전체'?'조회 지출':fil+' 지출'}${receiptFil!=='전체'?' · 영수증 '+receiptFil:''} (${filtered.length}건)`} amount={total} color={C.no} S={S} />
+      <DataTable columns={cols} data={filtered} onDelete={id => remove('expenses',id)} emptyText="지출 내역 없음" S={S} />
 
       {/* ─── 영수증 첨부 모달 ─── */}
       {pickerOpenFor && (() => {
